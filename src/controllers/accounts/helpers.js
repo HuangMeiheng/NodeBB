@@ -12,6 +12,7 @@ const utils = require('../../utils');
 const privileges = require('../../privileges');
 const translator = require('../../translator');
 const messaging = require('../../messaging');
+const { buildLinks } = require('../helpers');
 
 const helpers = module.exports;
 
@@ -83,7 +84,7 @@ helpers.getUserDataByUserSlug = async function (userslug, callerUID) {
 	userData['reputation:disabled'] = meta.config['reputation:disabled'] === 1;
 	userData['downvote:disabled'] = meta.config['downvote:disabled'] === 1;
 	userData['email:confirmed'] = !!userData['email:confirmed'];
-	userData.profile_links = filterLinks(results.profile_menu.links, {
+	userData.profile_links = await buildLinks('accounts.profile', results.profile_menu.links, {
 		self: isSelf,
 		other: !isSelf,
 		moderator: isModerator,
@@ -200,32 +201,6 @@ async function parseAboutMe(userData) {
 	userData.aboutme = validator.escape(String(userData.aboutme || ''));
 	const parsed = await plugins.fireHook('filter:parse.aboutme', userData.aboutme);
 	userData.aboutmeParsed = translator.escape(parsed);
-}
-
-function filterLinks(links, states) {
-	return links.filter(function (link, index) {
-		// "public" is the old property, if visibility is defined, discard `public`
-		if (link.hasOwnProperty('public') && !link.hasOwnProperty('visibility')) {
-			winston.warn('[account/profileMenu (' + link.id + ')] Use of the `.public` property is deprecated, use `visibility` now');
-			return link && (link.public || states.self);
-		}
-
-		// Default visibility
-		link.visibility = { self: true,
-			other: true,
-			moderator: true,
-			globalMod: true,
-			admin: true,
-			canViewInfo: true,
-			...link.visibility };
-
-		var permit = Object.keys(states).some(function (state) {
-			return states[state] && link.visibility[state];
-		});
-
-		links[index].public = permit;
-		return permit;
-	});
 }
 
 require('../../promisify')(helpers);
